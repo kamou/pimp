@@ -1,6 +1,8 @@
 import r2pipe
 import triton
 import struct
+import string
+import collections
 
 class R2Plugin(object):
     def __init__(self, name, privdata):
@@ -52,8 +54,6 @@ class R2Plugin(object):
         else:
             self.r2.cmd("CC {}".format(comment))
 
-
-
     def r2cmd(self, name):
         def dec(func):
             self.command = _r2_plugin_args[0]
@@ -92,7 +92,7 @@ class Pimp(object):
         self.comments = {}
         self.arch = tritonarch[arch][bits]
 
-        self.inputs = {}
+        self.inputs = collections.OrderedDict()
         self.regs = {}
 
         triton.setArchitecture(self.arch)
@@ -397,6 +397,17 @@ def cmd_symulate(p, a):
 # define symbolized memory
 @pimp.r2p.r2cmd("input")
 def cmd_symbolize(p, a):
+    if not len(a):
+        for addr in p.inputs:
+            b = chr(triton.getConcreteMemoryValue(addr))
+            if b in string.printable:
+                print "0x{:x}: 0x{:x} ({})".format(addr, triton.getConcreteMemoryValue(addr), b)
+            else:
+                print "0x{:x}: 0x{:x}".format(addr, triton.getConcreteMemoryValue(addr))
+        return
+    elif len(a) != 2:
+        print "error: command takes either no arguments or 2 arguments"
+        return
     size = p.r2p.integer(a[0])
     addr = p.r2p.integer(a[1])
 
