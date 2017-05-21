@@ -50,3 +50,6 @@ Reset triton memory with current binary memory
 Load triton generated input back into r2
 
 `$pimp sync`
+
+### Author:
+Ayman Khamouma (@dsknctr)
