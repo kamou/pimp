@@ -233,7 +233,7 @@ class Pimp(object):
                     for r, ast in rr:
                         if ast.isSymbolized():
                             reglist.append(r.getName())
-                    self.comments[inst.getAddress()] = "symbolized regs: {}".format(" ,".join(reglist))
+                    self.comments[inst.getAddress()] = "symbolized regs: {}".format(", ".join(reglist))
 
 
             if (stop_on_sj == True and isSymbolized and inst.isControlFlow() and (inst.getType() != triton.OPCODE.JMP)):
