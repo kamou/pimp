@@ -14,6 +14,7 @@ Triton based R2 plugin for concolic execution (WIP)
 #### Warning:
 Currently, R2 and Triton need to be compiled with the same libcapsone version.
 This should change in the future.
+As this is still WIP, commands might change, check for the readme file updates after git pull.
 
 
 ### Installation:
