@@ -19,14 +19,10 @@ class R2Plugin(object):
         self.commands = {}
 
     def get_reg(self, reg):
-        res = int(self.r2.cmd("dr {}".format(reg)), 16)
-        return res
+        return self.get_regs()[reg]
 
     def get_regs(self):
-        regs = {}
-        for reg in self.regs:
-            regs[reg] = self.get_reg(reg)
-        return regs
+        return self.r2.cmdj("drj")
 
     def get_maps(self):
         return self.r2.cmdj("dmj")
