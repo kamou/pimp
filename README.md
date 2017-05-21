@@ -35,11 +35,11 @@ Emulate execution until a symbolic jump is met:
 
 `$pimp dcusj`
 
-Take Current jump:
+Take Current conditional jump:
 
 `$pimp take`
 
-Avoid current jump:
+Avoid current conditional jump:
 
 `$pimp avoid`
 
