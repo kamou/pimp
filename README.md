@@ -9,11 +9,11 @@ Triton based R2 plugin for concolic execution (WIP)
    * r2
    * Triton (and its dependencies)
    * r2pipe
-   * r2lang
+   * lang-python
 
 #### Warning:
 Currently, R2 and Triton need to be compiled with the same libcapsone version.
-This should change in the future
+This should change in the future.
 
 
 ### Installation:
