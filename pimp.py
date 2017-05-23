@@ -251,7 +251,7 @@ class Pimp(object):
     def is_conditional(self, inst):
         return inst.getType() in (triton.OPCODE.JAE, triton.OPCODE.JA, triton.OPCODE.JBE, triton.OPCODE.JB, triton.OPCODE.JCXZ, triton.OPCODE.JECXZ, triton.OPCODE.JE, triton.OPCODE.JGE, triton.OPCODE.JG, triton.OPCODE.JLE, triton.OPCODE.JL, triton.OPCODE.JNE, triton.OPCODE.JNO, triton.OPCODE.JNP, triton.OPCODE.JNS, triton.OPCODE.JO, triton.OPCODE.JP, triton.OPCODE.JS)
 
-    def symulate(self, stop=None, stop_on_sj=False):
+    def symulate(self, stop=None, stop_on_sj=False, stop_on_si=False):
         while True:
             inst = self.disassemble_inst()
             print inst
@@ -273,6 +273,8 @@ class Pimp(object):
                     self.comments[inst.getAddress()] = "symbolized regs: {}".format(", ".join(reglist))
 
 
+            if stop_on_si == True and isSymbolized:
+                return inst.getAddress()
             if (stop_on_sj == True and isSymbolized and inst.isControlFlow() and (inst.getType() != triton.OPCODE.JMP)):
                 return inst.getAddress()
 
@@ -373,6 +375,16 @@ def cmd_until(p, a):
 @pimp.r2p.r2cmd("dcusj")
 def cmd_until_symjump(p, a):
     addr = p.symulate(stop_on_sj=True)
+    for caddr in p.comments:
+        p.r2p.set_comment(p.comments[caddr], caddr)
+
+    p.r2p.seek(addr)
+
+
+# continue until symbolized instruction
+@pimp.r2p.r2cmd("dcusi")
+def cmd_until_sym(p, a):
+    addr = p.symulate(stop_on_si=True)
     for caddr in p.comments:
         p.r2p.set_comment(p.comments[caddr], caddr)
 
