@@ -16,7 +16,7 @@ class R2Plugin(object):
         bininfo = self.r2.cmdj("ij")["bin"]
         self.arch = bininfo["arch"]
         self.bits = bininfo["bits"]
-        self.regs = self.r2.cmd("drl").split()
+        self.regs = self.r2.cmdj("drlj")
         self.switch_flagspace(name)
         self.commands = {}
 
