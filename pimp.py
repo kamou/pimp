@@ -67,6 +67,16 @@ class R2Plugin(object):
         name = "{}.{}.{}".format(self.name, section, name)
         self.r2.cmd("f {} {} @ {}".format(name, size, address))
 
+    def get_flags(self, section=None):
+        flags = {}
+        for flag in self.r2.cmdj("fj"):
+            name = flag["name"]
+            offset = flag["offset"]
+            if section and name.startswith("{}.{}.".format(self.name, section)):
+                flags[name] = offset
+            elif not section:
+                flags[name] = offset
+        return flags
     def set_comment(self, comment, address=None):
         if address:
             self.r2.cmd("CC {} @ 0x{:x}".format(comment, address))
@@ -88,8 +98,13 @@ class R2Plugin(object):
 
     def integer(self, s):
         regs = self.get_regs()
+        flags = self.get_flags()
         if s in regs:
             v = regs[s]
+        elif s in flags:
+            v = flags[s]
+        elif s in self.exports:
+            v = self.exports[s]
         elif s.startswith("0x"):
             v = int(s, 16)
         else:
