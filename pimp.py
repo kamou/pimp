@@ -20,6 +20,16 @@ class R2Plugin(object):
         self.switch_flagspace(name)
         self.commands = {}
 
+        self.sections = self.get_sections()
+        imports = self.get_imports()
+        self.imports = {}
+        for imp in imports:
+            self.imports[imp["plt"]] = imp["name"]
+        exports = self.get_exports()
+        self.exports = {}
+        for exp in exports:
+            self.exports[exp["name"]] = exp["vaddr"]
+
     def get_reg(self, reg):
         return self.get_regs()[reg]
 
@@ -28,6 +38,15 @@ class R2Plugin(object):
 
     def get_maps(self):
         return self.r2.cmdj("dmj")
+
+    def get_sections(self):
+        return self.r2.cmdj("Sj")
+
+    def get_imports(self):
+        return self.r2.cmdj("iij")
+
+    def get_exports(self):
+        return self.r2.cmdj("iEj")
 
     def read_mem(self, address, size):
         hexdata = self.r2.cmd("p8 {} @ 0x{:X}".format(size, address))
