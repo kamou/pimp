@@ -33,6 +33,10 @@ Declare the symbolic variables (memory):
 
 `$pimp input size address`
 
+Emulate execution until a symbolic instruction is met:
+
+`$pimp dcusi`
+
 Emulate execution until a symbolic jump is met:
 
 `$pimp dcusj`
