@@ -219,6 +219,9 @@ class Pimp(object):
         inst.setAddress(_pc)
         # execute instruction
         triton.processing(inst)
+        wr = inst.getWrittenRegisters()
+        for r, _ in wr:
+            self.r2p.set_flag("regs", r.getName(), r.getSize(), triton.getConcreteRegisterValue(r) )
         return inst
 
     def add_input(self, addr, size):
@@ -359,7 +362,6 @@ def cmd_until_symjump(p, a):
         p.r2p.set_comment(p.comments[caddr], caddr)
 
     p.r2p.seek(addr)
-    p.r2p.set_flag("regs", p.pcreg.getName(), 1, addr)
 
 # go to current jump target
 @pimp.r2p.r2cmd("take")
