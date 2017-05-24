@@ -6,7 +6,7 @@ Triton based R2 plugin for concolic execution (WIP)
 [![asciicast](http://ak42.io/wp-content/uploads/2017/05/scrot.png)](https://asciinema.org/a/ccncic4ab0m7080dxdl4gye5z)
  
 #### Dependencies:
-   * r2
+   * r2 (master)
    * Triton (and its dependencies)
    * r2pipe
    * lang-python
