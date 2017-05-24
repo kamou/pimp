@@ -62,6 +62,8 @@ Load triton generated input back into r2
 
 ### Author:
 Ayman Khamouma ([@dsknctr](https://twitter.com/dsknctr)) ak42@mg.blackbunny.io
-([http://blackbunny.io](http://blackbunny.io))
-([http://ak42.io](http://ak42.io))
+
+[http://blackbunny.io](http://blackbunny.io)
+
+[http://ak42.io](http://ak42.io)
 
