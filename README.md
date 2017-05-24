@@ -19,43 +19,49 @@ As this is still WIP, commands might change, check for the readme file updates a
 
 
 ### Installation:
-add the following line to your radare2rc file:
 ```
-$pimp=#!pipe python /path/to/pimp_wrapper.py
+git clone https://github.com/kamou/pimp.git
 ```
 
 ### Usage:
+
+As this is about concolic execution, the r2's debug mode is required.
+run `r2 -d bnary -i path/to/pimp.py`
+
 Initialise the Triton context:
 
-`$pimp init`
+`pimp.init`
 
 Declare the symbolic variables (memory):
 
-`$pimp input size address`
+`pimp.input size address`
 
 Emulate execution until a symbolic instruction is met:
 
-`$pimp dcusi`
+`pimp.dcusi`
 
 Emulate execution until a symbolic jump is met:
 
-`$pimp dcusj`
+`pimp.dcusj`
 
 Take Current conditional jump:
 
-`$pimp take`
+`pimp.take`
 
 Avoid current conditional jump:
 
-`$pimp avoid`
+`pimp.avoid`
 
 Reset triton memory with current binary memory
 
-`$pimp reset`
+`pimp.reset`
 
 Load triton generated input back into r2
 
-`$pimp sync`
+`pimp.sync`
 
 ### Author:
-Ayman Khamouma (@dsknctr)
+Ayman Khamouma ([@dsknctr](https://twitter.com/dsknctr)) ak42@mg.blackbunny.io
+([http://blackbunny.io](http://blackbunny.io))
+([http://ak42.io](http://ak42.io))
+
