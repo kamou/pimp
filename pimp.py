@@ -1,15 +1,13 @@
+import r2lang
 import r2pipe
 import triton
 import struct
 import string
 import collections
 
-class R2Plugin(object):
-    def __init__(self, name, privdata):
-        self.privdata = privdata
+class R2(object):
+    def __init__(self, name):
         self.name = name
-        self.command = _r2_plugin_args[0]
-        self.args = _r2_plugin_args[1:]
 
         self.r2 = r2pipe.open()
 
@@ -18,7 +16,6 @@ class R2Plugin(object):
         self.bits = bininfo["bits"]
         self.regs = self.r2.cmdj("drlj")
         self.switch_flagspace(name)
-        self.commands = {}
 
         self.sections = self.get_sections()
         imports = self.get_imports()
@@ -83,19 +80,6 @@ class R2Plugin(object):
         else:
             self.r2.cmd("CC {}".format(comment))
 
-    def r2cmd(self, name):
-        def dec(func):
-            self.command = _r2_plugin_args[0]
-            self.args = _r2_plugin_args[1:]
-            func.command = name
-            self.commands[name] = (func)
-        return dec
-
-    def handle(self):
-        if self.command in self.commands:
-            return self.commands[self.command](self.privdata, self.args)
-        print "[*] Unknown command {}".format(self.command)
-
     def integer(self, s):
         regs = self.get_regs()
         flags = self.get_flags()
@@ -119,21 +103,27 @@ tritonarch = {
 }
 
 class Pimp(object):
+    CMD_HANDLED = 1
+    CMD_NOT_HANDLED = 0
     def __init__(self, context=None):
-        self.r2p = R2Plugin("pimp", self)
-        arch = self.r2p.arch
-        bits = self.r2p.bits
+        self.r2p = None
         self.comments = {}
-        self.arch = tritonarch[arch][bits]
-
+        self.arch = None
         self.inputs = collections.OrderedDict()
         self.regs = {}
+        self.triton_regs = {}
+        self.commands = {}
+
+        self.r2p = R2("pimp")
+        arch = self.r2p.arch
+        bits = self.r2p.bits
+        self.arch = tritonarch[arch][bits]
+
 
         triton.setArchitecture(self.arch)
         triton.setAstRepresentationMode(triton.AST_REPRESENTATION.PYTHON)
 
         # Hack in order to be able to get triton register ids by name
-        self.triton_regs = {}
         for r in triton.getAllRegisters():
             self.triton_regs[r.getName()] = r
 
@@ -145,6 +135,16 @@ class Pimp(object):
             raise(ValueError("Architecture not implemented"))
 
         setattr(self.memoryCaching, "memsolver", self.r2p)
+
+    def pimpcmd(self, name):
+        def dec(func):
+            self.commands[name] = (func)
+        return dec
+
+    def handle(self, command, args):
+        if command in self.commands:
+            return self.commands[command](self, args)
+        print "[!] Unknown command {}".format(command)
 
     def reset(self):
         triton.resetEngines()
@@ -338,16 +338,34 @@ class Pimp(object):
                 return True
         return False
 
-try:
-    _r2_plugin_args = _r2_plugin_args.split()
-except NameError as e:
-    print "[*] pimp.py cannot be called directly, use pimp_wrapper.py"
-    exit()
+    def plugin(self, a):
+        def _call(s):
+            try:
+                args = s.split()
+                module, command = args[0].split(".")
+            except:
+                # exit slently, this is not for us
+                return Pimp.CMD_NOT_HANDLED
+            try:
+                if module == "pimp":
+                    self.handle(command, args[1:])
+                    return Pimp.CMD_HANDLED
+                # not for us
+                return Pimp.CMD_NOT_HANDLED
+            except Exception as e:
+                # this is an actual pimp error.
+                print e
+                return Pimp.CMD_HANDLED
 
-if "cache" not in globals():
-    cache = []
-if "pimp" not in globals():
-    pimp = Pimp()
+        return {
+            "name": "pimp",
+            "licence": "GPLv3",
+            "desc": "Triton based plugin for concolic execution and total control",
+            "call": _call,
+        }
+
+cache = []
+pimp = Pimp()
 
 def get_byte(address):
     for m in cache:
@@ -357,13 +375,13 @@ def get_byte(address):
 
 
 # initialise the Triton context with current r2 state (registers)
-@pimp.r2p.r2cmd("init")
+@pimp.pimpcmd("init")
 def cmd_init(p, a):
     p.regs = p.r2p.get_regs()
     p.reset()
 
 # continue until address
-@pimp.r2p.r2cmd("dcu")
+@pimp.pimpcmd("dcu")
 def cmd_until(p, a):
     target = p.r2p.integer(a[0])
     addr = p.symulate(stop=target, stop_on_sj=True)
@@ -372,7 +390,7 @@ def cmd_until(p, a):
     return
 
 # continue until symbolized jump
-@pimp.r2p.r2cmd("dcusj")
+@pimp.pimpcmd("dcusj")
 def cmd_until_symjump(p, a):
     addr = p.symulate(stop_on_sj=True)
     for caddr in p.comments:
@@ -382,7 +400,7 @@ def cmd_until_symjump(p, a):
 
 
 # continue until symbolized instruction
-@pimp.r2p.r2cmd("dcusi")
+@pimp.pimpcmd("dcusi")
 def cmd_until_sym(p, a):
     addr = p.symulate(stop_on_si=True)
     for caddr in p.comments:
@@ -391,7 +409,7 @@ def cmd_until_sym(p, a):
     p.r2p.seek(addr)
 
 # go to current jump target
-@pimp.r2p.r2cmd("take")
+@pimp.pimpcmd("take")
 def cmd_take_symjump(p, a):
     addr = p.r2p.seek()
     inst = p.disassemble_inst(addr)
@@ -415,7 +433,7 @@ def cmd_take_symjump(p, a):
     print "error: end of execution"
 
 # avoid current jump target
-@pimp.r2p.r2cmd("avoid")
+@pimp.pimpcmd("avoid")
 def cmd_avoid_symjump(p, a):
     addr = p.r2p.seek()
     inst = p.disassemble_inst(addr)
@@ -438,12 +456,12 @@ def cmd_avoid_symjump(p, a):
             return
     print "error: end of execution"
 
-@pimp.r2p.r2cmd("symulate")
+@pimp.pimpcmd("symulate")
 def cmd_symulate(p, a):
     pass
 
 # define symbolized memory
-@pimp.r2p.r2cmd("input")
+@pimp.pimpcmd("input")
 def cmd_symbolize(p, a):
     if not len(a):
         for addr in p.inputs:
@@ -462,14 +480,14 @@ def cmd_symbolize(p, a):
     p.add_input(addr, size)
 
 # sync r2 with input generated by triton
-@pimp.r2p.r2cmd("sync")
+@pimp.pimpcmd("sync")
 def cmd_sync_input(p, a):
     for address in p.inputs:
         p.r2p.write_mem(address, get_byte(address))
 
 
 # reset memory with r2 current state
-@pimp.r2p.r2cmd("reset")
+@pimp.pimpcmd("reset")
 def cmd_reset(p, a):
     global cache
     ncache = []
@@ -482,5 +500,8 @@ def cmd_reset(p, a):
     cache = ncache
 
 
-pimp.r2p.handle()
-
+success = r2lang.plugin("core", pimp.plugin)
+if not success:
+    print "[!] Failed loading pimp plugin"
+else:
+    print "[*] Pimp plugin loaded, available commands are:\n\t{}".format(", ".join(pimp.commands))
