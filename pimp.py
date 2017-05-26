@@ -46,15 +46,15 @@ class R2(object):
         return self.r2.cmdj("iEj")
 
     def read_mem(self, address, size):
-        hexdata = self.r2.cmd("p8 {} @ 0x{:X}".format(size, address))
+        hexdata = self.r2.cmd("p8 {} @ {:#x}".format(size, address))
         return hexdata.decode('hex')
 
     def write_mem(self, address, data):
-        self.r2.cmd("wx {} @ 0x{:X}".format(data.encode("hex"), address))
+        self.r2.cmd("wx {} @ {:#x}".format(data.encode("hex"), address))
 
     def seek(self, addr=None):
         if addr:
-            self.r2.cmd("s 0x{:x}".format(addr))
+            self.r2.cmd("s {:#x}".format(addr))
         return int(self.r2.cmd("s"), 16)
 
     def switch_flagspace(self, name):
@@ -76,7 +76,7 @@ class R2(object):
         return flags
     def set_comment(self, comment, address=None):
         if address:
-            self.r2.cmd("CC {} @ 0x{:x}".format(comment, address))
+            self.r2.cmd("CC {} @ {:#x}".format(comment, address))
         else:
             self.r2.cmd("CC {}".format(comment))
 
@@ -263,7 +263,7 @@ class Pimp(object):
             if isSymbolized:
                 for access, ast in inst.getLoadAccess():
                     if(access.getAddress() in self.inputs):
-                        self.comments[inst.getAddress()] = "symbolized memory: 0x{:x}".format(access.getAddress())
+                        self.comments[inst.getAddress()] = "symbolized memory: {:#x}".format(access.getAddress())
                 rr = inst.getReadRegisters()
                 if rr:
                     reglist = []
@@ -467,9 +467,9 @@ def cmd_symbolize(p, a):
         for addr in p.inputs:
             b = chr(triton.getConcreteMemoryValue(addr))
             if b in string.printable:
-                print "0x{:x}: 0x{:x} ({})".format(addr, triton.getConcreteMemoryValue(addr), b)
+                print "{:#x}: {:#x} ({})".format(addr, triton.getConcreteMemoryValue(addr), b)
             else:
-                print "0x{:x}: 0x{:x}".format(addr, triton.getConcreteMemoryValue(addr))
+                print "{:#x}: {:#x}".format(addr, triton.getConcreteMemoryValue(addr))
         return
     elif len(a) != 2:
         print "error: command takes either no arguments or 2 arguments"
