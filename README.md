@@ -32,9 +32,9 @@ Initialise the Triton context:
 
 `pimp.init`
 
-Declare the symbolic variables (memory):
+Declare or list the symbolic variables (memory):
 
-`pimp.input size address`
+`pimp.input [size] [address]`
 
 Emulate execution until a symbolic instruction is met:
 
@@ -52,13 +52,21 @@ Avoid current conditional jump:
 
 `pimp.avoid`
 
-Reset triton memory with current binary memory
+Reset triton memory with current binary memory:
 
 `pimp.reset`
 
-Load triton generated input back into r2
+Load triton generated input back into r2:
 
 `pimp.sync`
+
+Peek a memory value from the Triton cache:
+
+`pimp.peek size address`
+
+Poke (write) a memory value to the Triton cache (only do this if you know what you are doing):
+
+`pimp.poke value size address`
 
 ### Author:
 Ayman Khamouma ([@dsknctr](https://twitter.com/dsknctr)) ak42@mg.blackbunny.io
