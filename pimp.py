@@ -162,7 +162,7 @@ class Pimp(object):
         for r in self.regs:
             if r in self.triton_regs:
                 triton.setConcreteRegisterValue(
-                    triton.Register(self.triton_regs[r], self.regs[r])
+                    triton.Register(self.triton_regs[r], self.regs[r] & ((1 << self.triton_regs[r].getBitSize()) - 1))
                 )
 
         for m in cache:
