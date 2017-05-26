@@ -520,6 +520,19 @@ def cmd_reset(p, a):
         ncache.append({"start": addr, "data": data})
     cache = ncache
 
+@pimp.pimpcmd("peek")
+def cmd_peek(p, a):
+    size = p.r2p.integer(a[0])
+    addr = p.r2p.integer(a[1])
+    print "{:#x}".format(p.peek(addr, size))
+
+
+@pimp.pimpcmd("poke")
+def cmd_poke(p, a):
+    value = p.r2p.integer(a[0])
+    size = p.r2p.integer(a[1])
+    addr = p.r2p.integer(a[2])
+    p.poke(addr, size, value)
 
 success = r2lang.plugin("core", pimp.plugin)
 if not success:
