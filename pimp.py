@@ -166,7 +166,7 @@ class Pimp(object):
                 )
 
         for m in cache:
-            triton.setConcreteMemoryAreaValue(m['start'], bytearray(m["data"]))
+            self.write_mem(m['start'], m["data"])
 
         for address in self.inputs:
                 self.inputs[address] = triton.convertMemoryToSymbolicVariable(
@@ -203,7 +203,7 @@ class Pimp(object):
         if pc:
             _pc = pc
 
-        opcodes = triton.getConcreteMemoryAreaValue(_pc, 16)
+        opcodes = self.read_mem(_pc, 16)
 
         # Create the Triton instruction
         inst = triton.Instruction()
@@ -226,7 +226,7 @@ class Pimp(object):
         if pc:
             _pc = pc
 
-        opcodes = triton.getConcreteMemoryAreaValue(_pc, 16)
+        opcodes = self.read_mem(_pc, 16)
 
         # Create the Triton instruction
         inst = triton.Instruction()
@@ -330,6 +330,27 @@ class Pimp(object):
 
         cstr = triton.ast.assert_(cstr)
         return cstr
+
+    def peek(self, addr, size):
+        return triton.getConcreteMemoryValue(triton.MemoryAccess(addr, size))
+
+    def poke(self, addr, size, value):
+        return triton.setConcreteMemoryValue(triton.MemoryAccess(addr, size, value))
+
+    def read_mem(self, addr, size):
+        return triton.getConcreteMemoryAreaValue(addr, size)
+
+    def write_mem(self, addr, data):
+        triton.setConcreteMemoryAreaValue(addr, data)
+
+    def read_str(self, addr):
+        s = str()
+        i = 0
+        while (True):
+            v = self.peek(addr + i, 1)
+            s += chr(v)
+            if not v: break
+        return s
 
     @staticmethod
     def isMapped(addr):
@@ -465,11 +486,11 @@ def cmd_symulate(p, a):
 def cmd_symbolize(p, a):
     if not len(a):
         for addr in p.inputs:
-            b = chr(triton.getConcreteMemoryValue(addr))
+            b = chr(p.peek(addr, 1))
             if b in string.printable:
-                print "{:#x}: {:#x} ({})".format(addr, triton.getConcreteMemoryValue(addr), b)
+                print "{:#x}: {:#x} ({})".format(addr, p.peek(addr, 1), b)
             else:
-                print "{:#x}: {:#x}".format(addr, triton.getConcreteMemoryValue(addr))
+                print "{:#x}: {:#x}".format(addr, p.peek(addr, 1))
         return
     elif len(a) != 2:
         print "error: command takes either no arguments or 2 arguments"
@@ -495,7 +516,7 @@ def cmd_reset(p, a):
         addr = m["start"]
         size = len(m["data"])
         data = p.r2p.read_mem(addr, size)
-        triton.setConcreteMemoryAreaValue(addr, bytearray(data))
+        p.write_mem(addr, data)
         ncache.append({"start": addr, "data": data})
     cache = ncache
 
