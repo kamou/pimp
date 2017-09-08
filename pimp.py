@@ -15,7 +15,7 @@ class R2(object):
         self.arch = bininfo["arch"]
         self.bits = bininfo["bits"]
         self.regs = self.r2.cmdj("drlj")
-        self.switch_flagspace(name)
+        self.switch_flagspace(self.name)
 
         self.sections = self.get_sections()
         imports = self.get_imports()
@@ -142,6 +142,7 @@ class Pimp(object):
         return dec
 
     def handle(self, command, args):
+        self.r2p.switch_flagspace(self.r2p.name)
         if command in self.commands:
             return self.commands[command](self, args)
         print "[!] Unknown command {}".format(command)
@@ -234,9 +235,6 @@ class Pimp(object):
         inst.setAddress(_pc)
         # execute instruction
         triton.processing(inst)
-        wr = inst.getWrittenRegisters()
-        for r, _ in wr:
-            self.r2p.set_flag("regs", r.getName(), r.getSize(), triton.getConcreteRegisterValue(r) )
         return inst
 
     def add_input(self, addr, size):
@@ -370,6 +368,8 @@ class Pimp(object):
             try:
                 if module == "pimp":
                     self.handle(command, args[1:])
+                    for r in self.triton_regs:
+                        self.r2p.set_flag("regs", r, self.triton_regs[r].getSize(), triton.getConcreteRegisterValue(self.triton_regs[r]) )
                     return Pimp.CMD_HANDLED
                 # not for us
                 return Pimp.CMD_NOT_HANDLED
