@@ -115,6 +115,7 @@ class Pimp(object):
         self.regs = {}
         self.triton_regs = {}
         self.commands = {}
+        self.last_symjump = None
 
         self.r2p = R2("pimp")
         arch = self.r2p.arch
@@ -423,6 +424,7 @@ def cmd_until(p, a):
 @pimp.pimpcmd("dcusj")
 def cmd_until_symjump(p, a):
     addr = p.symulate(stop_on_sj=True)
+    p.last_symjump = addr
     for caddr in p.comments:
         p.r2p.set_comment(p.comments[caddr], caddr)
 
@@ -441,7 +443,10 @@ def cmd_until_sym(p, a):
 # go to current jump target
 @pimp.pimpcmd("take")
 def cmd_take_symjump(p, a):
-    addr = p.r2p.seek()
+    if p.last_symjump == None:
+        print "Can't do that right now"
+    addr = p.last_symjump
+    p.last_symjump = None
     inst = p.disassemble_inst(addr)
     if not p.is_conditional(inst):
         print "error: invalid instruction type"
@@ -465,7 +470,10 @@ def cmd_take_symjump(p, a):
 # avoid current jump target
 @pimp.pimpcmd("avoid")
 def cmd_avoid_symjump(p, a):
-    addr = p.r2p.seek()
+    if p.last_symjump == None:
+        print "Can't do that right now"
+    addr = p.last_symjump
+    p.last_symjump = None
     inst = p.disassemble_inst(addr)
     if not p.is_conditional(inst):
         print "error: invalid instruction type"
