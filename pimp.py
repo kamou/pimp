@@ -76,8 +76,10 @@ class R2(object):
         return flags
     def set_comment(self, comment, address=None):
         if address:
+            self.r2.cmd("CC- @ {:#x}".format(address))
             self.r2.cmd("CC {} @ {:#x}".format(comment, address))
         else:
+            self.r2.cmd("CC-".format(comment))
             self.r2.cmd("CC {}".format(comment))
 
     def integer(self, s):
@@ -261,6 +263,12 @@ class Pimp(object):
             if isSymbolized:
                 for access, ast in inst.getLoadAccess():
                     if(access.getAddress() in self.inputs):
+                        try:
+                            if str(access) == str(inst.getSecondOperand()):
+                                self.r2p.r2.cmd("ecHw '{}' red @ {:#x}".format(self.r2p.r2.cmd("e scr.color=false; pi 1 @ {:#x}; e scr.color=true".format(inst.getAddress())).split(",")[1].lstrip().rstrip(), inst.getAddress()))
+                            elif str(access) == str(inst.getThirdOperand()):
+                                print self.r2p.r2.cmd("e scr.color=false; pi 1 @ {:#x}; e scr.color=true".format(inst.getAddress())).split(",", 2)
+                        except: pass
                         self.comments[inst.getAddress()] = "symbolized memory: {:#x}".format(access.getAddress())
                 rr = inst.getReadRegisters()
                 if rr:
@@ -268,6 +276,7 @@ class Pimp(object):
                     for r, ast in rr:
                         if ast.isSymbolized():
                             reglist.append(r.getName())
+                            self.r2p.r2.cmd("ecHw {} red @ {:#x}".format(r.getName(), inst.getAddress()))
                     self.comments[inst.getAddress()] = "symbolized regs: {}".format(", ".join(reglist))
 
 
