@@ -116,6 +116,7 @@ class Pimp(object):
         self.triton_regs = {}
         self.commands = {}
         self.last_symjump = None
+        self.input_type = None
 
         self.r2p = R2("pimp")
         arch = self.r2p.arch
@@ -336,6 +337,12 @@ class Pimp(object):
                     if isPreviousBranchConstraint or isBranchToTake:
                         cstr = triton.ast.land(cstr, bcstr)
 
+        if self.input_type == "string":
+            addrs = [self.inputs[inpt] for inpt in self.inputs]
+            for inpt in addrs[0:-1]:
+                symExp = triton.getSymbolicExpressionFromId(inpt.getId()).getAst()
+                cstr = triton.ast.land(cstr, triton.ast.lnot(triton.ast.equal(symExp, triton.ast.bv(0, 8))))
+
         cstr = triton.ast.assert_(cstr)
         return cstr
 
@@ -550,6 +557,11 @@ def cmd_poke(p, a):
     size = p.r2p.integer(a[1])
     addr = p.r2p.integer(a[2])
     p.poke(addr, size, value)
+
+
+@pimp.pimpcmd("input_type")
+def cmd_input_type(p, a):
+    p.input_type = a[0]
 
 success = r2lang.plugin("core", pimp.plugin)
 if not success:
