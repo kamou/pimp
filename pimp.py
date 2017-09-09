@@ -122,6 +122,7 @@ class Pimp(object):
         arch = self.r2p.arch
         bits = self.r2p.bits
         self.arch = tritonarch[arch][bits]
+        self.trace = collections.Counter()
 
 
         triton.setArchitecture(self.arch)
@@ -453,7 +454,6 @@ def cmd_take_symjump(p, a):
     if p.last_symjump == None:
         print "Can't do that right now"
     addr = p.last_symjump
-    p.last_symjump = None
     inst = p.disassemble_inst(addr)
     if not p.is_conditional(inst):
         print "error: invalid instruction type"
@@ -467,10 +467,17 @@ def cmd_take_symjump(p, a):
 
     # reset and execute intil target is reached
     p.reset()
+    times = 0
     for inst in p.inst_iter():
+        if  inst.getAddress() == p.last_symjump and p.trace[p.last_symjump] == times:
+            p.trace[p.last_symjump] += 1
+        elif inst.getAddress() == p.last_symjump:
+            times += 1
+            p.process_inst()
         if inst.getAddress() == target:
             p.r2p.seek(target)
             p.r2p.set_flag("regs", p.pcreg.getName(), 1, target)
+            p.last_symjump = None
             return
     print "error: end of execution"
 
@@ -480,7 +487,6 @@ def cmd_avoid_symjump(p, a):
     if p.last_symjump == None:
         print "Can't do that right now"
     addr = p.last_symjump
-    p.last_symjump = None
     inst = p.disassemble_inst(addr)
     if not p.is_conditional(inst):
         print "error: invalid instruction type"
@@ -494,11 +500,16 @@ def cmd_avoid_symjump(p, a):
 
     # reset and execute intil target is reached
     p.reset()
+    times = 0
     for inst in p.inst_iter():
-        if inst.getAddress() == target:
+        if inst.getAddress() == target and (p.trace[p.last_symjump] == times):
             p.r2p.seek(target)
             p.r2p.set_flag("regs", p.pcreg.getName(), 1, target)
+            p.trace[p.last_symjump] += 1
+            p.last_symjump = None
             return
+        elif inst.getAddress() == p.last_symjump:
+            times += 1
     print "error: end of execution"
 
 @pimp.pimpcmd("symulate")
