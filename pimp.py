@@ -17,7 +17,7 @@ class R2(object):
         self.regs = self.r2.cmdj("drlj")
         self.switch_flagspace(self.name)
 
-        self.sections = self.get_sections()
+        # self.sections = self.get_sections()
         imports = self.get_imports()
         self.imports = {}
         for imp in imports:
@@ -46,7 +46,7 @@ class R2(object):
         return self.r2.cmdj("iEj")
 
     def read_mem(self, address, size):
-        hexdata = self.r2.cmd("p8 {} @ {:#x}".format(size, address))
+        hexdata = self.r2.cmd("p8 {} @ {:#x}".format(size, address)).strip()
         return hexdata.decode('hex')
 
     def write_mem(self, address, data):
@@ -117,25 +117,27 @@ class Pimp(object):
         self.commands = {}
         self.last_symjump = None
         self.input_type = None
+        self.breakpoints = list()
 
         self.r2p = R2("pimp")
         arch = self.r2p.arch
         bits = self.r2p.bits
         self.arch = tritonarch[arch][bits]
         self.trace = collections.Counter()
+        self.triton = triton.TritonContext()
 
 
-        triton.setArchitecture(self.arch)
-        triton.setAstRepresentationMode(triton.AST_REPRESENTATION.PYTHON)
+        self.triton.setArchitecture(self.arch)
+        self.triton.setAstRepresentationMode(triton.AST_REPRESENTATION.PYTHON)
 
         # Hack in order to be able to get triton register ids by name
-        for r in triton.getAllRegisters():
+        for r in self.triton.getAllRegisters():
             self.triton_regs[r.getName()] = r
 
         if self.arch == triton.ARCH.X86:
-            self.pcreg = triton.REG.EIP
+            self.pcreg = self.triton.registers.eip
         elif self.arch == triton.ARCH.X86_64:
-            self.pcreg = triton.REG.RIP
+            self.pcreg = self.triton.registers.rip
         else:
             raise(ValueError("Architecture not implemented"))
 
@@ -153,29 +155,29 @@ class Pimp(object):
         print "[!] Unknown command {}".format(command)
 
     def reset(self):
-        triton.resetEngines()
-        triton.clearPathConstraints()
-        triton.setArchitecture(self.arch)
+        self.triton.reset()
+        self.triton.clearPathConstraints()
+        self.triton.setArchitecture(self.arch)
 
-        triton.enableMode(triton.MODE.ALIGNED_MEMORY, True)
-        triton.enableMode(triton.MODE.ONLY_ON_SYMBOLIZED, True)
+        self.triton.enableMode(triton.MODE.ALIGNED_MEMORY, True)
+        self.triton.enableMode(triton.MODE.ONLY_ON_SYMBOLIZED, True)
 
-        triton.addCallback(self.memoryCaching,
+        self.triton.addCallback(self.memoryCaching,
                            triton.CALLBACK.GET_CONCRETE_MEMORY_VALUE)
-        triton.addCallback(self.constantFolding,
+        self.triton.addCallback(self.constantFolding,
                            triton.CALLBACK.SYMBOLIC_SIMPLIFICATION)
 
-        for r in self.regs:
-            if r in self.triton_regs:
-                triton.setConcreteRegisterValue(
-                    triton.Register(self.triton_regs[r], self.regs[r] & ((1 << self.triton_regs[r].getBitSize()) - 1))
+        for r in self.triton_regs:
+            if r in self.regs:
+                self.triton.setConcreteRegisterValue(
+                    self.triton_regs[r], self.regs[r] & 0xffffffffffffffff
                 )
 
         for m in cache:
             self.write_mem(m['start'], m["data"])
 
         for address in self.inputs:
-                self.inputs[address] = triton.convertMemoryToSymbolicVariable(
+                self.inputs[address] = self.triton.convertMemoryToSymbolicVariable(
                     triton.MemoryAccess(
                         address,
                         triton.CPUSIZE.BYTE
@@ -184,24 +186,25 @@ class Pimp(object):
 
     # Triton does not handle class method callbacks, use staticmethod.
     @staticmethod
-    def memoryCaching(mem):
+    def memoryCaching(T,  mem):
         addr = mem.getAddress()
         size = mem.getSize()
-        mapped = triton.isMemoryMapped(addr)
+        mapped = T.isMemoryMapped(addr)
         if not mapped:
-            dump = pimp.memoryCaching.memsolver.read_mem(addr, size)
-            triton.setConcreteMemoryAreaValue(addr, bytearray(dump))
+            dump = Pimp.memoryCaching.memsolver.read_mem(addr, size)
+            # dump = self.r2p.read_mem(addr, size)
+            T.setConcreteMemoryAreaValue(addr, bytearray(dump))
             cache.append({"start": addr, "data": bytearray(dump)})
         return
 
     @staticmethod
-    def constantFolding(node):
+    def constantFolding(T, node):
         if node.isSymbolized():
             return node
-        return triton.ast.bv(node.evaluate(), node.getBitvectorSize())
+        return T.getAstContext().bv(node.evaluate(), node.getBitvectorSize())
 
     def get_current_pc(self):
-        return triton.getConcreteRegisterValue(self.pcreg)
+        return self.triton.getConcreteRegisterValue(self.pcreg)
 
     def disassemble_inst(self, pc=None):
 
@@ -213,14 +216,13 @@ class Pimp(object):
 
         # Create the Triton instruction
         inst = triton.Instruction()
-        inst.setOpcodes(opcodes)
+        inst.setOpcode(opcodes)
         inst.setAddress(_pc)
         # disassemble instruction
-        triton.disassembly(inst)
+        self.triton.disassembly(inst)
         return inst
 
     def inst_iter(self, pc=None):
-
         while True:
             inst = self.process_inst()
             if inst.getType() == triton.OPCODE.HLT:
@@ -236,20 +238,17 @@ class Pimp(object):
 
         # Create the Triton instruction
         inst = triton.Instruction()
-        inst.setOpcodes(opcodes)
+        inst.setOpcode(opcodes)
         inst.setAddress(_pc)
         # execute instruction
-        triton.processing(inst)
+        self.triton.processing(inst)
         return inst
 
     def add_input(self, addr, size):
         for offset in xrange(size):
-            self.inputs[addr + offset] = triton.convertMemoryToSymbolicVariable(
-                triton.MemoryAccess(
-                    addr + offset,
-                    triton.CPUSIZE.BYTE
-                )
-            )
+            cmtsv = self.triton.convertMemoryToSymbolicVariable(triton.MemoryAccess(addr+offset, triton.CPUSIZE.BYTE))
+
+            self.inputs[addr + offset] = cmtsv
 
     def is_conditional(self, inst):
         return inst.getType() in (triton.OPCODE.JAE, triton.OPCODE.JA, triton.OPCODE.JBE, triton.OPCODE.JB, triton.OPCODE.JCXZ, triton.OPCODE.JECXZ, triton.OPCODE.JE, triton.OPCODE.JGE, triton.OPCODE.JG, triton.OPCODE.JLE, triton.OPCODE.JL, triton.OPCODE.JNE, triton.OPCODE.JNO, triton.OPCODE.JNP, triton.OPCODE.JNS, triton.OPCODE.JO, triton.OPCODE.JP, triton.OPCODE.JS)
@@ -257,6 +256,9 @@ class Pimp(object):
     def symulate(self, stop=None, stop_on_sj=False, stop_on_si=False):
         while True:
             inst = self.disassemble_inst()
+            if inst.getAddress() in self.breakpoints:
+                print "breakpoint at {:#}".format(inst.getAddress())
+                return
             print inst
             if inst.getAddress() == stop or inst.getType() == triton.OPCODE.HLT:
                 return inst.getAddress()
@@ -291,7 +293,7 @@ class Pimp(object):
     def process_constraint(self, cstr):
         global cache
         # request a model verifying cstr
-        model = triton.getModel(cstr)
+        model = self.triton.getModel(cstr)
         if not model:
             return False
 
@@ -315,12 +317,12 @@ class Pimp(object):
 
         inst = self.disassemble_inst(_pc)
         if take:
-            target = inst.getFirstOperand().getValue()
+            target = inst.getOperands()[0].getValue()
         else:
             target = _pc + inst.getSize()
 
-        pco = triton.getPathConstraints()
-        cstr = triton.ast.equal(triton.ast.bvtrue(), triton.ast.bvtrue())
+        pco = self.triton.getPathConstraints()
+        cstr = self.triton.getAstContext().equal(self.triton.getAstContext().bvtrue(), self.triton.getAstContext().bvtrue())
 
         for pc in pco:
             if pc.isMultipleBranches():
@@ -336,28 +338,74 @@ class Pimp(object):
                     isBranchToTake =  src == _pc and dst == target
 
                     if isPreviousBranchConstraint or isBranchToTake:
-                        cstr = triton.ast.land(cstr, bcstr)
+                        cstr = self.triton.getAstContext().land([cstr, bcstr])
 
-        if self.input_type == "string":
+        if self.input_type == "nonnull":
             addrs = [self.inputs[inpt] for inpt in self.inputs]
             for inpt in addrs[0:-1]:
                 symExp = triton.getSymbolicExpressionFromId(inpt.getId()).getAst()
-                cstr = triton.ast.land(cstr, triton.ast.lnot(triton.ast.equal(symExp, triton.ast.bv(0, 8))))
+                cstr = self.triton.getAstContext().land([cstr, self.triton.getAstContext().lnot(self.triton.getAstContext().equal(symExp, self.triton.getAstContext().bv(0, 8)))])
+            # last char should be 0
+            symExp = triton.getSymbolicExpressionFromId(addrs[-1]).getAst()
+            cstr = self.triton.getAstContext().land([cstr, self.triton.getAstContext().lnot(self.triton.getAstContext().equal(symExp, self.triton.getAstContext().bv(0, 8)))])
 
-        cstr = triton.ast.assert_(cstr)
+        elif self.input_type == "string":
+            addrs = [self.inputs[inpt] for inpt in self.inputs]
+            for inpt in addrs[0:-1]:
+                symExp = triton.getSymbolicExpressionFromId(inpt.getId()).getAst()
+                cstr = self.triton.getAstContext().land(
+                    [
+                        cstr,
+                        self.triton.getAstContext().land(
+                            ast.bvuge(symExp, bv(0x20,  8)),
+                            ast.bvuge(symExp, bv(0x7E,  8))
+                        )
+                    ]
+                )
+            # last char should be 0
+            symExp = triton.getSymbolicExpressionFromId(addrs[-1]).getAst()
+            cstr = self.triton.getAstContext().land([cstr, self.triton.getAstContext().lnot(self.triton.getAstContext().equal(symExp, self.triton.getAstContext().bv(0, 8)))])
+
+        # cstr = self.triton.getAstContext().assert_(cstr)
         return cstr
 
+    def string_constraint(self):
+        cstr = selg.triton.getAstContest().equal(self.triton.getAstContext().bvtrue(), self.triton.getAstContext().bvtrue())
+        addrs = [self.inputs for inpt in self.inputs.values()]
+        for inpt in addrs[0:-1]:
+            symExp = triton.getSymbolicExpressionFromId(inpt.getId()).getAst()
+            cstr = triton.getAstContext().land(
+                [
+                    cstr,
+                    self.triton.getAstContext().land(
+                        [
+                            ast.bvuge(symExp, bv(0x20,  8)),
+                            ast.bvuge(symExp, bv(0x7E,  8))
+                        ]
+                    )
+                ]
+            )
+        # last char should be 0
+        symExp = triton.getSymbolicExpressionFromId(addrs[-1]).getAst()
+        cstr = self.triton.getAstContext().land([cstr, self.triton.getAstContext().lnot(self.triton.getAstContext().equal(symExp, self.triton.getAstContext().bv(0, 8)))])
+        return cstr
+
+
+    def nonnulltring_constraint(self):
+        pass
+
+
     def peek(self, addr, size):
-        return triton.getConcreteMemoryValue(triton.MemoryAccess(addr, size))
+        return self.triton.getConcreteMemoryValue(triton.MemoryAccess(addr, size))
 
     def poke(self, addr, size, value):
-        return triton.setConcreteMemoryValue(triton.MemoryAccess(addr, size, value))
+        return self.triton.setConcreteMemoryValue(triton.MemoryAccess(addr, size, value))
 
     def read_mem(self, addr, size):
-        return triton.getConcreteMemoryAreaValue(addr, size)
+        return self.triton.getConcreteMemoryAreaValue(addr, size)
 
     def write_mem(self, addr, data):
-        triton.setConcreteMemoryAreaValue(addr, data)
+        self.triton.setConcreteMemoryAreaValue(addr, data)
 
     def read_str(self, addr):
         s = str()
@@ -367,6 +415,9 @@ class Pimp(object):
             s += chr(v)
             if not v: break
         return s
+
+    def add_bp(self, addr):
+        self.breakpoints.append(addr)
 
     @staticmethod
     def isMapped(addr):
@@ -387,7 +438,7 @@ class Pimp(object):
                 if module == "pimp":
                     self.handle(command, args[1:])
                     for r in self.triton_regs:
-                        self.r2p.set_flag("regs", r, self.triton_regs[r].getSize(), triton.getConcreteRegisterValue(self.triton_regs[r]) )
+                        self.r2p.set_flag("regs", r, self.triton_regs[r].getSize(), self.triton.getConcreteRegisterValue(self.triton_regs[r]) )
                     return Pimp.CMD_HANDLED
                 # not for us
                 return Pimp.CMD_NOT_HANDLED
@@ -458,7 +509,7 @@ def cmd_take_symjump(p, a):
     if not p.is_conditional(inst):
         print "error: invalid instruction type"
         return
-    target = inst.getFirstOperand().getValue()
+    target = inst.getOperands()[0].getValue()
 
     cstr = p.build_jmp_constraint(pc=addr)
     if not p.process_constraint(cstr):
@@ -474,6 +525,8 @@ def cmd_take_symjump(p, a):
         elif inst.getAddress() == p.last_symjump:
             times += 1
             p.process_inst()
+
+        # this works totally by chance...
         if inst.getAddress() == target:
             p.r2p.seek(target)
             p.r2p.set_flag("regs", p.pcreg.getName(), 1, target)
@@ -502,19 +555,19 @@ def cmd_avoid_symjump(p, a):
     p.reset()
     times = 0
     for inst in p.inst_iter():
-        if inst.getAddress() == target and (p.trace[p.last_symjump] == times):
-            p.r2p.seek(target)
-            p.r2p.set_flag("regs", p.pcreg.getName(), 1, target)
+        if  inst.getAddress() == p.last_symjump and p.trace[p.last_symjump] == times:
             p.trace[p.last_symjump] += 1
-            p.last_symjump = None
-            return
         elif inst.getAddress() == p.last_symjump:
             times += 1
-    print "error: end of execution"
+            p.process_inst()
 
-@pimp.pimpcmd("symulate")
-def cmd_symulate(p, a):
-    pass
+        # this works totally by chance...
+        if inst.getAddress() == target:
+            p.r2p.seek(target)
+            p.r2p.set_flag("regs", p.pcreg.getName(), 1, target)
+            p.last_symjump = None
+            return
+    print "error: end of execution"
 
 # define symbolized memory
 @pimp.pimpcmd("input")
@@ -530,10 +583,14 @@ def cmd_symbolize(p, a):
     elif len(a) != 2:
         print "error: command takes either no arguments or 2 arguments"
         return
-    size = p.r2p.integer(a[0])
-    addr = p.r2p.integer(a[1])
+    size = p.r2p.integer(a[0].strip())
+    addr = p.r2p.integer(a[1].strip())
+    print size
+    print addr
 
+    print "adding input"
     p.add_input(addr, size)
+    print "adding input done"
 
 # sync r2 with input generated by triton
 @pimp.pimpcmd("sync")
@@ -573,6 +630,10 @@ def cmd_poke(p, a):
 @pimp.pimpcmd("input_type")
 def cmd_input_type(p, a):
     p.input_type = a[0]
+
+@pimp.pimpcmd("breakpoint")
+def cmd_break(p, a):
+    p.add_bp(p.r2p.integer(a[0]))
 
 success = r2lang.plugin("core", pimp.plugin)
 if not success:
