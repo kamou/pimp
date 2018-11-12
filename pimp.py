@@ -17,7 +17,7 @@ class R2(object):
         self.regs = self.r2.cmdj("drlj")
         self.switch_flagspace(self.name)
 
-        # self.sections = self.get_sections()
+        self.sections = self.get_sections()
         imports = self.get_imports()
         self.imports = {}
         for imp in imports:
@@ -37,7 +37,7 @@ class R2(object):
         return self.r2.cmdj("dmj")
 
     def get_sections(self):
-        return self.r2.cmdj("Sj")
+        return self.r2.cmdj("iSj")
 
     def get_imports(self):
         return self.r2.cmdj("iij")
