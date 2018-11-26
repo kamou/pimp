@@ -346,50 +346,53 @@ class Pimp(object):
                 symExp = triton.getSymbolicExpressionFromId(inpt.getId()).getAst()
                 cstr = self.triton.getAstContext().land([cstr, self.triton.getAstContext().lnot(self.triton.getAstContext().equal(symExp, self.triton.getAstContext().bv(0, 8)))])
             # last char should be 0
-            symExp = triton.getSymbolicExpressionFromId(addrs[-1]).getAst()
+            symExp = triton.getSymbolicExpressionFromId(addrs[-1].getId()).getAst()
             cstr = self.triton.getAstContext().land([cstr, self.triton.getAstContext().lnot(self.triton.getAstContext().equal(symExp, self.triton.getAstContext().bv(0, 8)))])
 
         elif self.input_type == "string":
             addrs = [self.inputs[inpt] for inpt in self.inputs]
             for inpt in addrs[0:-1]:
-                symExp = triton.getSymbolicExpressionFromId(inpt.getId()).getAst()
+                symExp = self.triton.getSymbolicExpressionFromId(inpt.getId()).getAst()
                 cstr = self.triton.getAstContext().land(
                     [
                         cstr,
                         self.triton.getAstContext().land(
-                            ast.bvuge(symExp, bv(0x20,  8)),
-                            ast.bvuge(symExp, bv(0x7E,  8))
+                            [
+                                self.triton.getAstContext().bvuge(symExp, self.triton.getAstContext().bv(0x20,  8)),
+                                self.triton.getAstContext().bvuge(symExp, self.triton.getAstContext().bv(0x7E,  8))
+                            ]
                         )
                     ]
                 )
-            # last char should be 0
-            symExp = triton.getSymbolicExpressionFromId(addrs[-1]).getAst()
+
+            # last char should be 0            
+            symExp = self.triton.getSymbolicExpressionFromId(addrs[-1].getId()).getAst()
             cstr = self.triton.getAstContext().land([cstr, self.triton.getAstContext().lnot(self.triton.getAstContext().equal(symExp, self.triton.getAstContext().bv(0, 8)))])
 
         # cstr = self.triton.getAstContext().assert_(cstr)
         return cstr
 
     def string_constraint(self):
-        cstr = selg.triton.getAstContest().equal(self.triton.getAstContext().bvtrue(), self.triton.getAstContext().bvtrue())
+        cstr = self.triton.getAstContest().equal(self.triton.getAstContext().bvtrue(), self.triton.getAstContext().bvtrue())
         addrs = [self.inputs for inpt in self.inputs.values()]
         for inpt in addrs[0:-1]:
-            symExp = triton.getSymbolicExpressionFromId(inpt.getId()).getAst()
-            cstr = triton.getAstContext().land(
-                [
-                    cstr,
-                    self.triton.getAstContext().land(
-                        [
-                            ast.bvuge(symExp, bv(0x20,  8)),
-                            ast.bvuge(symExp, bv(0x7E,  8))
-                        ]
-                    )
-                ]
-            )
-        # last char should be 0
-        symExp = triton.getSymbolicExpressionFromId(addrs[-1]).getAst()
+                symExp = self.triton.getSymbolicExpressionFromId(inpt.getId()).getAst()
+                cstr = self.triton.getAstContext().land(
+                    [
+                        cstr,
+                        self.triton.getAstContext().land(
+                            [
+                                self.triton.getAstContext().bvuge(symExp, self.triton.getAstContext().bv(0x20,  8)),
+                                self.triton.getAstContext().bvuge(symExp, self.triton.getAstContext().bv(0x7E,  8))
+                            ]
+                        )
+                    ]
+                )
+
+            # last char should be 0            
+        symExp = self.triton.getSymbolicExpressionFromId(addrs[-1].getId()).getAst()
         cstr = self.triton.getAstContext().land([cstr, self.triton.getAstContext().lnot(self.triton.getAstContext().equal(symExp, self.triton.getAstContext().bv(0, 8)))])
         return cstr
-
 
     def nonnulltring_constraint(self):
         pass
